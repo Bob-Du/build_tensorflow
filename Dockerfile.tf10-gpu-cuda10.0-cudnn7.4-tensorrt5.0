@@ -1,0 +1,122 @@
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
+
+# This image only used by build TensorFlow wheel file.
+
+LABEL author="TinyMind" website="www.tinymind.com" email="hello@tinymind.com"
+
+RUN apt update && apt install -y --no-install-recommends \
+        build-essential \
+        libcurl3-dev \
+        libfreetype6-dev \
+        libhdf5-serial-dev \
+        libpng-dev \
+        libzmq3-dev \
+        pkg-config \
+        rsync \
+        software-properties-common \
+        unzip \
+        zip \
+        zlib1g-dev \
+        curl \
+        wget \
+        git \
+        swig \
+        python3 \
+        python3-dev && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    wget https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py
+
+RUN pip --no-cache-dir install --upgrade \
+        Pillow \
+        h5py \
+        ipykernel \
+        jupyter \
+        keras_applications \
+        keras_preprocessing \
+        matplotlib \
+        mock \
+        numpy \
+        scipy \
+        sklearn \
+        pandas \
+        enum34
+
+# Install TensorRT 5.0.2
+RUN apt update && \
+    apt install nvinfer-runtime-trt-repo-ubuntu1804-5.0.2-ga-cuda10.0 && \
+    apt update && \
+    apt install -y --no-install-recommends libnvinfer5 libnvinfer-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Link NCCL libray and header where the build script expects them.
+RUN mkdir /usr/local/cuda/lib &&  \
+    ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.2 /usr/local/cuda/lib/libnccl.so.2 && \
+    ln -s /usr/include/nccl.h /usr/local/cuda/include/nccl.h
+
+# Install bazel
+ENV BAZEL_VERSION=0.15.0
+RUN mkdir /bazel && \
+    wget -O /bazel/installer.sh \
+    "https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh" && \
+    chmod +x /bazel/installer.sh && \
+    /bazel/installer.sh && \
+    rm -f /bazel/installer.sh
+
+ENV TENSORFLOW_VERSION=1.10.1
+RUN wget -O tensorflow.tar.gz https://github.com/tensorflow/tensorflow/archive/v"$TENSORFLOW_VERSION".tar.gz && \
+    tar -zxf tensorflow.tar.gz && \
+    rm tensorflow.tar.gz && \
+    mv /tensorflow-"$TENSORFLOW_VERSION" /tensorflow 
+
+WORKDIR /tensorflow
+
+# Configure the build for our CUDA configuration.
+# Compute Capabilities ref: https://developer.nvidia.com/cuda-gpus
+ENV CI_BUILD_PYTHON=python
+ENV PYTHON_BIN_PATH="/usr/bin/python"
+ENV PYTHON_LIB_PATH="/usr/local/lib/python3.6/dist-packages"
+ENV TF_NEED_JEMALLOC="1"
+ENV TF_NEED_KAFKA=0
+ENV TF_NEED_GCP="0"
+ENV TF_NEED_AWS="0"
+ENV TF_NEED_HDFS="0"
+ENV TF_ENABLE_XLA=0
+ENV TF_NEED_GDR="0"
+ENV TF_NEED_VERBS="0"
+ENV TF_NEED_OPENCL_SYCL=0
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+ENV TF_NEED_CUDA=1
+ENV CUDA_PATH="/usr/local/cuda"
+ENV CUDA_TOOLKIT_PATH="/usr/local/cuda"
+ENV TF_NEED_TENSORRT=1
+ENV TF_CUDA_COMPUTE_CAPABILITIES=3.5,5.2,6.0,6.1,7.0
+ENV TF_CUDA_VERSION=10.0
+ENV TF_CUDNN_VERSION=7.4
+ENV CUDNN_INSTALL_PATH="/usr/local/cuda"
+ENV TENSORRT_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
+ENV TF_NCCL_VERSION=2
+ENV NCCL_INSTALL_PATH="/usr/local/cuda"
+ENV TF_CUDA_CLANG=0
+ENV TF_NEED_MPI=0
+ENV GCC_HOST_COMPILER_PATH="/usr/bin/gcc"
+ENV TF_SET_ANDROID_WORKSPACE="0"
+ENV CC_OPT_FLAGS="-march=native"
+
+RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    ./configure && \
+    bazel build --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+        tensorflow/tools/pip_package:build_pip_package && \
+    rm /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    bazel-bin/tensorflow/tools/pip_package/build_pip_package /root/pip && \
+    pip --no-cache-dir install --upgrade /root/pip/tensorflow-*.whl && \
+    rm -rf /root/.cache
+# Clean up pip wheel and Bazel cache when done.
+
+
+WORKDIR /root
+
+# TensorBoard
+EXPOSE 6006
+# IPython
+EXPOSE 8888
