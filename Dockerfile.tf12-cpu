@@ -60,7 +60,7 @@ RUN mkdir /bazel && \
     /bazel/installer.sh && \
     rm -f /bazel/installer.sh
 
-ENV TENSORFLOW_VERSION=1.11.0
+ENV TENSORFLOW_VERSION=1.12.0
 RUN wget -O tensorflow.tar.gz https://github.com/tensorflow/tensorflow/archive/v"$TENSORFLOW_VERSION".tar.gz && \
     tar -zxf tensorflow.tar.gz && \
     rm tensorflow.tar.gz && \
@@ -87,6 +87,8 @@ ENV TF_NEED_MPI=0
 ENV TF_NEED_NGRAPH=0
 ENV GCC_HOST_COMPILER_PATH="/usr/bin/gcc"
 ENV TF_DOWNLOAD_CLANG="0"
+ENV TF_NEED_IGNITE="1"
+ENV TF_NEED_ROCM="0"
 ENV TF_SET_ANDROID_WORKSPACE="0"
 ENV CC_OPT_FLAGS="-march=native"
 
