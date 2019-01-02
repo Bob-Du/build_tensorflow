@@ -6,6 +6,8 @@ LABEL author="TinyMind" website="www.tinymind.com" email="hello@tinymind.com"
 
 RUN apt update && apt install -y --no-install-recommends \
         build-essential \
+        cmake \
+        g++ \
         libcurl3-dev \
         libfreetype6-dev \
         libhdf5-serial-dev \
